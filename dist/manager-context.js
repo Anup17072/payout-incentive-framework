@@ -1,0 +1,21 @@
+let managerMappingId=riderMapping().id;
+function managerMappings(){return entityMappings.filter(m=>m.enabled)}
+function managerMapping(){return managerMappings().find(m=>m.id===managerMappingId)||managerMappings()[0]||{id:'',lob:'',entity:''}}
+function managerConfigIndices(){return configs.map((c,i)=>({c,i})).filter(({c})=>(c.entityMappingId||riderMapping().id)===managerMapping().id).map(x=>x.i)}
+function managerContext(){const m=managerMapping(),all=managerMappings();return `<div class="context"><div><label class="label" for="managerLob">Business Line ${info('Choose from the available business lines. You currently have access to all whitelisted mappings.')}</label><select id="managerLob">${[...new Set(all.map(x=>x.lob))].map(l=>`<option ${l===m.lob?'selected':''}>${esc(l)}</option>`).join('')}</select></div><div><label class="label" for="managerEntity">Entity ${info('Entities mapped to the selected business line.')}</label><select id="managerEntity">${all.filter(x=>x.lob===m.lob).map(x=>`<option value="${esc(x.id)}" ${x.id===m.id?'selected':''}>${esc(x.entity)}</option>`).join('')}</select></div></div>`}
+const beforeManagerContext=context;
+context=function(){return role==='manager'?managerContext():beforeManagerContext()};
+managerList=function(){const visiblePrograms=programs.filter(p=>(p.entityMappingId||riderMapping().id)===managerMapping().id);return `<div class="titlebar"><h1>Incentive programs</h1><button class="button primary" id="createProgram" ${managerConfigIndices().length?'':'disabled'}>+ Create incentive</button></div>${context()}${managerConfigIndices().length?'':'<p class="quiet">No incentive configuration is available for this business line and entity.</p>'}<section class="panel"><div class="panel-head"><h2>Programs <span class="badge">${visiblePrograms.length}</span></h2></div><div class="tablewrap"><table><thead><tr><th>NAME</th><th>TYPE / EVALUATION</th><th>PROGRAM DATES</th><th>PAYOUT</th><th>STATUS</th><th></th></tr></thead><tbody>${visiblePrograms.map(p=>`<tr class="program-row"><td><strong>${esc(p.name)}</strong></td><td>${esc(configs[p.type]?.name||'Incentive')}<small>${p.evaluation}</small></td><td class="nowrap">${p.end?dateLabel(p.start)+' – '+dateLabel(p.end):'No end date'}</td><td>${p.payoutType}<small>${esc(programBehavior(p))}</small></td><td><span class="tag ${p.status==='Live'?'status-live':'status-draft'}">${p.status}</span></td><td><button class="link" data-edit-program="${p.id}">${p.status==='Draft'?'Edit':'Open'}</button></td></tr>`).join('')}${visiblePrograms.length?'':'<tr><td colspan="6" class="empty">No incentive programs for this entity.</td></tr>'}</tbody></table></div></section><p class="footer">Sample prototype · Programs and configurations are shared across user types for this page session.</p>`};
+const beforeManagerForm=managerForm;
+managerForm=function(){const m=managerMapping();return beforeManagerForm().replace('<div class="split">',managerContext()+'<div class="split">').replace('<span class="badge">Last Mile / Rider</span>',`<span class="badge">${esc(m.lob)} / ${esc(m.entity)}</span>`)};
+const beforeManagerBinding=bindManager;
+bindManager=function(){beforeManagerBinding();
+ document.getElementById('managerLob')?.addEventListener('change',e=>changeManagerMapping(managerMappings().find(m=>m.lob===e.target.value)?.id));
+ document.getElementById('managerEntity')?.addEventListener('change',e=>changeManagerMapping(e.target.value));
+ const create=document.getElementById('createProgram');if(create){const replacement=create.cloneNode(true);create.replaceWith(replacement);replacement.onclick=()=>{const type=managerConfigIndices()[0];if(type===undefined)return;programEdit=blankProgram(type);programEdit.entityMappingId=managerMapping().id;render()}}
+ const type=document.getElementById('pType');if(programEdit&&type){Array.from(type.options||[]).forEach(o=>{if(!managerConfigIndices().includes(Number(o.value)))o.remove()})}
+};
+function changeManagerMapping(id){managerMappingId=id;programEdit=null;render()}
+const beforeManagerNav=navRole;
+navRole=function(){beforeManagerNav();if(role==='manager'){const m=managerMapping();document.querySelector('.admin').innerHTML=`Manager workspace<small>${esc(m.lob)} · ${esc(m.entity)}</small>`}};
+render();
